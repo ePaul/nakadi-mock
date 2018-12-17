@@ -20,7 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zalando.nakadi_mock.EventSubmissionCallback.CollectingCallback;
+import org.zalando.nakadi_mock.CallbackUtils.CollectingCallback;
 
 public class NakadiMockTest {
     private static Logger LOG = LoggerFactory.getLogger(NakadiMockTest.class);

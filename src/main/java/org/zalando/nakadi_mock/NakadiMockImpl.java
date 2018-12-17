@@ -32,7 +32,7 @@ class NakadiMockImpl implements NakadiMock {
 
     private class EventTypeImpl implements EventType {
         private final String name;
-        private EventSubmissionCallback<?> callback = EventSubmissionCallback.IGNORING_CALLBACK;
+        private EventSubmissionCallback<?> callback = CallbackUtils.IGNORING_CALLBACK;
 
         private EventTypeImpl(String name) {
             this.name = name;
