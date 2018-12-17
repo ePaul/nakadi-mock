@@ -25,21 +25,21 @@ public interface EventSubmissionCallback<Event> {
      *            the correct type parameter. The easiest way of doing this is
      *            by using {@code new CollectingCallback<...>(){}}.
      */
-    class CollectingCallback<E> implements EventSubmissionCallback<E> {
+    abstract class CollectingCallback<E> implements EventSubmissionCallback<E> {
         private List<List<E>> submittedBatches = new ArrayList<>();
         private List<E> submittedEvents = new ArrayList<>();
-    
+
         @Override
         public NakadiSubmissionAnswer processBatch(List<E> batch) {
             submittedBatches.add(batch);
             submittedEvents.addAll(batch);
             return NakadiSubmissionAnswer.ok();
         }
-    
+
         public List<List<E>> getSubmittedBatches() {
             return submittedBatches;
         }
-    
+
         public List<E> getSubmittedEvents() {
             return submittedEvents;
         }

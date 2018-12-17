@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
@@ -148,12 +149,13 @@ public class NakadiMockTest {
     public void testSubmissionWithBatchItemReponsePartiallySubmitted() throws IOException {
         String eventType = "example-event";
         mock.eventType(eventType).setSubmissionCallback(ExampleEvent.class,
-                batch -> {
-                    BatchItemResponse r1 = new BatchItemResponse("123", PublishingStatus.SUBMITTED, null, null);
-                    BatchItemResponse r2 = new BatchItemResponse("124", PublishingStatus.FAILED,
-                            PublishingProcessStep.VALIDATING, "Validation failed");
-                    return NakadiSubmissionAnswer.partialSubmitted(Arrays.asList(r1, r2));
-                });
+                batch -> NakadiSubmissionAnswer.partialSubmitted(
+                        batch.stream()
+                             .map(event -> event.bla != null
+                                    ? new BatchItemResponse("123", PublishingStatus.SUBMITTED, null, null)
+                                    : new BatchItemResponse("124", PublishingStatus.FAILED,
+                                            PublishingProcessStep.VALIDATING, "Missing key 'bla'"))
+                            .collect(Collectors.toList())));
         mock.start();
 
         String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
@@ -171,12 +173,12 @@ public class NakadiMockTest {
         assertThat(document.read("$[1].eid"), is("124"));
         assertThat(document.read("$[1].publishing_status"), is("failed"));
         assertThat(document.read("$[1].step"), is("validating"));
-        assertThat(document.read("$[1].detail"), is("Validation failed"));
+        assertThat(document.read("$[1].detail"), is("Missing key 'bla'"));
     }
 
 
     @Test
-    public void testSubmissionWithBatchItemReponseNotSubmitted() throws IOException {
+    public void testSubmissionWithBatchItemReponseValidationFailed() throws IOException {
         String eventType = "example-event";
         mock.eventType(eventType).setSubmissionCallback(ExampleEvent.class,
                 batch -> {
