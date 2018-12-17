@@ -54,7 +54,7 @@ class NakadiMockImpl implements NakadiMock {
 
     private class EventTypeImpl implements EventType {
         private final String name;
-        private CallbackWithTypeRef<?> callback = new CallbackWithTypeRef<>(Object.class, CallbackUtils.IGNORING_CALLBACK);
+        private CallbackWithTypeRef<?> callback = new CallbackWithTypeRef<>(Object.class, EventSubmissionCallback.IGNORING_CALLBACK);
 
         private EventTypeImpl(String name) {
             this.name = name;

@@ -22,7 +22,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zalando.nakadi_mock.CallbackUtils.CollectingCallback;
+import org.zalando.nakadi_mock.EventSubmissionCallback.CollectingCallback;
 import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse;
 import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse.PublishingProcessStep;
 import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse.PublishingStatus;
@@ -79,8 +79,7 @@ public class NakadiMockTest {
 
     @Test
     public void testSubmissionWithCollectingCallback() throws IOException {
-        CollectingCallback<Map<String, String>> collector = new CollectingCallback<Map<String, String>>() {
-        };
+        CollectingCallback<Map<String, String>> collector = new CollectingCallback<Map<String, String>>() {};
         String eventType = "example-event";
         mock.eventType(eventType).setSubmissionCallback(collector);
         mock.start();
