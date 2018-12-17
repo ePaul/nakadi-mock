@@ -4,15 +4,18 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import com.jayway.jsonpath.DocumentContext;
+import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.TypeRef;
 import org.junit.After;
 import org.junit.Before;
@@ -20,6 +23,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zalando.nakadi_mock.CallbackUtils.CollectingCallback;
+import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse;
+import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse.PublishingProcessStep;
+import org.zalando.nakadi_mock.NakadiSubmissionAnswer.BatchItemResponse.PublishingStatus;
 
 public class NakadiMockTest {
     private static Logger LOG = LoggerFactory.getLogger(NakadiMockTest.class);
@@ -139,11 +145,112 @@ public class NakadiMockTest {
         mock.stop();
     }
 
+    @Test
+    public void testSubmissionWithBatchItemReponsePartiallySubmitted() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(ExampleEvent.class,
+                batch -> {
+                    BatchItemResponse r1 = new BatchItemResponse("123", PublishingStatus.SUBMITTED, null, null);
+                    BatchItemResponse r2 = new BatchItemResponse("124", PublishingStatus.FAILED,
+                            PublishingProcessStep.VALIDATING, "Validation failed");
+                    return NakadiSubmissionAnswer.partialSubmitted(Arrays.asList(r1, r2));
+                });
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        HttpURLConnection connection = submitEventsAndReturnConnection(submissionUrl(eventType), events);
+        int status = connection.getResponseCode();
+        assertThat(status, is(207));
+        //String text = readFully(connection.getInputStream());
+        DocumentContext document = JsonPath.parse(connection.getInputStream());
+       // LOG.error("document: {}", document);
+        assertThat(document.read("$"), hasSize(2));
+
+        assertThat(document.read("$[0].eid"), is("123"));
+        assertThat(document.read("$[0].publishing_status"), is("submitted"));
+
+        assertThat(document.read("$[1].eid"), is("124"));
+        assertThat(document.read("$[1].publishing_status"), is("failed"));
+        assertThat(document.read("$[1].step"), is("validating"));
+        assertThat(document.read("$[1].detail"), is("Validation failed"));
+    }
+
+
+    @Test
+    public void testSubmissionWithBatchItemReponseNotSubmitted() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(ExampleEvent.class,
+                batch -> {
+                    BatchItemResponse r1 = new BatchItemResponse("123", PublishingStatus.SUBMITTED, null, null);
+                    BatchItemResponse r2 = new BatchItemResponse("124", PublishingStatus.FAILED,
+                            PublishingProcessStep.VALIDATING, "Validation failed");
+                    return NakadiSubmissionAnswer.partialValidation(Arrays.asList(r1, r2));
+                });
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        HttpURLConnection connection = submitEventsAndReturnConnection(submissionUrl(eventType), events);
+        int status = connection.getResponseCode();
+        assertThat(status, is(422));
+
+        DocumentContext document = JsonPath.parse(connection.getErrorStream());
+        assertThat(document.read("$"), hasSize(2));
+
+        assertThat(document.read("$[0].eid"), is("123"));
+        assertThat(document.read("$[0].publishing_status"), is("submitted"));
+
+        assertThat(document.read("$[1].eid"), is("124"));
+        assertThat(document.read("$[1].publishing_status"), is("failed"));
+        assertThat(document.read("$[1].step"), is("validating"));
+        assertThat(document.read("$[1].detail"), is("Validation failed"));
+    }
+
+    @Test
+    public void testSubmissionForbidden() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(new TypeRef<Map<String, String>>() {},
+                batch -> NakadiSubmissionAnswer.accessForbidden());
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        HttpURLConnection connection = submitEventsAndReturnConnection(submissionUrl(eventType), events);
+        int status = connection.getResponseCode();
+        assertThat(status, is(403));
+        mock.stop();
+    }
+
+    @Test
+    public void testSubmissionNotAuthenticated() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(new TypeRef<Map<String, String>>() {},
+                batch -> NakadiSubmissionAnswer.notAuthenticated());
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        HttpURLConnection connection = submitEventsAndReturnConnection(submissionUrl(eventType), events);
+        int status = connection.getResponseCode();
+        assertThat(status, is(401));
+
+        mock.stop();
+    }
+
     private static class ExampleEvent {
         public String bla;
         public String egal;
     }
 
+    private String readFully(InputStream stream) throws IOException {
+        StringBuilder builder = new StringBuilder(stream.available());
+        InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8);
+        char[] buffer = new char[500];
+        int read;
+        while (0 < (read = reader.read(buffer))) {
+            builder.append(buffer, 0, read);
+        }
+        reader.close();
+        stream.close();
+        return builder.toString();
+    }
 
     private URL submissionUrl(String eventType) {
         try {
@@ -154,13 +261,19 @@ public class NakadiMockTest {
     }
 
     private void postDataToUrl(String events, URL eventSubmissionUrl) throws IOException {
-        URLConnection connection = eventSubmissionUrl.openConnection();
+        URLConnection connection = submitEventsAndReturnConnection(eventSubmissionUrl, events);
+        connection.getInputStream().close();
+    }
+
+    private HttpURLConnection submitEventsAndReturnConnection(URL eventSubmissionUrl, String events)
+            throws IOException, UnsupportedEncodingException {
+        HttpURLConnection connection = (HttpURLConnection)eventSubmissionUrl.openConnection();
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json");
         connection.connect();
         PrintStream out = new PrintStream(connection.getOutputStream(), true, "UTF-8");
         out.print(events);
         out.close();
-        connection.getInputStream().close();
+        return connection;
     }
 }

@@ -1,6 +1,9 @@
 package org.zalando.nakadi_mock;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public abstract class NakadiSubmissionAnswer {
 
@@ -35,8 +38,7 @@ public abstract class NakadiSubmissionAnswer {
 
         @Override
         String getBody() {
-            // TODO
-            return "{'error':'This should be a batch item response!'}".replace('\'', '"');
+            return items.stream().map(item -> item.toJSon()).collect(Collectors.joining(", ", "[", "]"));
         }
     }
 
@@ -55,11 +57,26 @@ public abstract class NakadiSubmissionAnswer {
         final String detail;
 
         public BatchItemResponse(String eid, PublishingStatus status, PublishingProcessStep step, String detail) {
-            super();
             this.eid = eid;
             this.status = status;
             this.step = step;
             this.detail = detail;
+        }
+
+        public String toJSon() {
+            Map<String, String> items = new LinkedHashMap<>();
+            items.put("eid", eid);
+            items.put("publishing_status", status.name().toLowerCase());
+            if (step != null) {
+                items.put("step", step.name().toLowerCase());
+            }
+            items.put("detail", detail);
+            return
+                items.entrySet()
+                     .stream()
+                     .filter(entry -> entry.getValue() != null)
+                     .map(entry -> "\"" + entry.getKey() + "\": \"" + entry.getValue() + "\"")
+                     .collect(Collectors.joining(", ", "{", "}"));
         }
     }
 
