@@ -10,6 +10,7 @@ import java.util.Map;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.TypeRef;
 import com.jayway.jsonpath.spi.json.GsonJsonProvider;
 import com.jayway.jsonpath.spi.mapper.GsonMappingProvider;
 
@@ -30,9 +31,30 @@ class NakadiMockImpl implements NakadiMock {
     Configuration jsonPathConfig = Configuration.builder().jsonProvider(new GsonJsonProvider())
             .mappingProvider(new GsonMappingProvider()).build();
 
+
+    private static class CallbackWithTypeRef<T> {
+        EventSubmissionCallback<T> callback;
+        TypeRef<List<T>> listTypeRef;
+
+        public CallbackWithTypeRef(EventSubmissionCallback<T> callback) {
+            this.callback = callback;
+            this.listTypeRef = TypeUtils.getListTypeRefFromCallback(callback);
+        }
+
+        public CallbackWithTypeRef(TypeRef<T> eventTypeRef, EventSubmissionCallback<T> callback) {
+            this.callback = callback;
+            this.listTypeRef = TypeUtils.getListTypeRef(eventTypeRef);
+        }
+
+        public CallbackWithTypeRef(Class<T> eventTypeRef, EventSubmissionCallback<T> callback) {
+            this.callback = callback;
+            this.listTypeRef = TypeUtils.getListTypeRef(eventTypeRef);
+        }
+    }
+
     private class EventTypeImpl implements EventType {
         private final String name;
-        private EventSubmissionCallback<?> callback = CallbackUtils.IGNORING_CALLBACK;
+        private CallbackWithTypeRef<?> callback = new CallbackWithTypeRef<>(Object.class, CallbackUtils.IGNORING_CALLBACK);
 
         private EventTypeImpl(String name) {
             this.name = name;
@@ -44,14 +66,24 @@ class NakadiMockImpl implements NakadiMock {
         }
 
         @Override
-        public void setSubmissionCallback(EventSubmissionCallback<?> callback) {
-            this.callback = callback;
+        public <T> void setSubmissionCallback(EventSubmissionCallback<T> callback) {
+            this.callback = new CallbackWithTypeRef<>(callback);
         }
 
-        private <T> NakadiSubmissionAnswer parseAndPassToCallback(EventSubmissionCallback<T> callback,
+        @Override
+        public <T> void setSubmissionCallback(TypeRef<T> type, EventSubmissionCallback<T> callback) {
+            this.callback = new CallbackWithTypeRef<>(type, callback);
+        }
+
+        @Override
+        public <T> void setSubmissionCallback(Class<T> type, EventSubmissionCallback<T> callback) {
+            this.callback = new CallbackWithTypeRef<>(type, callback);
+        }
+
+        private <T> NakadiSubmissionAnswer parseAndPassToCallback(CallbackWithTypeRef<T> callback,
                 DocumentContext document) {
-            List<T> events = document.read("$.[*]", TypeUtils.getTypeRefFromCallback(callback));
-            NakadiSubmissionAnswer answer = callback.processBatch(events);
+            List<T> events = document.read("$.[*]", callback.listTypeRef);
+            NakadiSubmissionAnswer answer = callback.callback.processBatch(events);
             return answer;
         }
 

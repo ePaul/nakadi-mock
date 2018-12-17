@@ -1,8 +1,6 @@
 package org.zalando.nakadi_mock;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -15,6 +13,7 @@ import java.net.URLConnection;
 import java.util.List;
 import java.util.Map;
 
+import com.jayway.jsonpath.TypeRef;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -74,7 +73,8 @@ public class NakadiMockTest {
 
     @Test
     public void testSubmissionWithCollectingCallback() throws IOException {
-        CollectingCallback<Map<String, String>> collector = new CollectingCallback<Map<String, String>>() {};
+        CollectingCallback<Map<String, String>> collector = new CollectingCallback<Map<String, String>>() {
+        };
         String eventType = "example-event";
         mock.eventType(eventType).setSubmissionCallback(collector);
         mock.start();
@@ -89,6 +89,61 @@ public class NakadiMockTest {
 
         LOG.info("Batches: {}", collector.getSubmittedBatches());
     }
+
+    @Test
+    public void testSubmissionWithCustomCallbackLambda() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(new TypeRef<Map<String, String>>() {},
+                batch -> NakadiSubmissionAnswer.ok());
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        postDataToUrl(events, submissionUrl(eventType));
+
+        mock.stop();
+    }
+
+    @Test
+    public void testSubmissionWithCustomCallbackInnerClass() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(new EventSubmissionCallback<Map<String, String>>() {
+            @Override
+            public NakadiSubmissionAnswer processBatch(List<Map<String, String>> batch) {
+                assertThat(batch.get(0).get("bla"), is(equalTo("blub")));
+                assertThat(batch.get(1).get("egal"), is(equalTo("wie")));
+                return NakadiSubmissionAnswer.ok();
+            }
+        });
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        postDataToUrl(events, submissionUrl(eventType));
+
+        mock.stop();
+    }
+
+    @Test
+    public void testSubmissionWithCustomCallbackLambdaExampleEvent() throws IOException {
+        String eventType = "example-event";
+        mock.eventType(eventType).setSubmissionCallback(ExampleEvent.class,
+                batch -> {
+                    assertThat(batch.get(0).bla, is(equalTo("blub")));
+                    assertThat(batch.get(1).egal, is(equalTo("wie")));
+                    return NakadiSubmissionAnswer.ok();
+                });
+        mock.start();
+
+        String events = "[{'bla':'blub'}, {'egal':'wie'}]".replace('\'', '"');
+        postDataToUrl(events, submissionUrl(eventType));
+
+        mock.stop();
+    }
+
+    private static class ExampleEvent {
+        public String bla;
+        public String egal;
+    }
+
 
     private URL submissionUrl(String eventType) {
         try {
