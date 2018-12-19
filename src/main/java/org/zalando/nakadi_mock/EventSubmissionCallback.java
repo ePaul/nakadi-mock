@@ -1,5 +1,6 @@
 package org.zalando.nakadi_mock;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,8 +47,8 @@ public interface EventSubmissionCallback<Event> {
     }
 
     /**
-     * A callback which accepts all events and ignores them.
-     * You usually don't need to specify this, as this is the default for all event types.
+     * A callback which accepts all events and ignores them. You usually don't
+     * need to specify this, as this is the default for all event types.
      */
     EventSubmissionCallback<Object> IGNORING_CALLBACK = new EventSubmissionCallback<Object>() {
         @Override
@@ -60,4 +61,60 @@ public interface EventSubmissionCallback<Event> {
      * Process a batch of events and return an answer.
      */
     NakadiSubmissionAnswer processBatch(List<Event> batch);
+
+    /**
+     * A helper class which can be used to parse the received event as a data
+     * change event, with {@code <Data>} as the embedded data type. You can use
+     * this as the type parameter for the EventSubmissionCallback.
+     */
+    public class DataChangeEvent<Data> {
+        private Data data;
+        private String dataType;
+        private String dataOp;
+        private MetaData metaData;
+
+        public Data getData() {
+            return data;
+        }
+
+        public String getDataType() {
+            return dataType;
+        }
+
+        public String getDataOp() {
+            return dataOp;
+        }
+
+        public MetaData getMetaData() {
+            return metaData;
+        }
+    }
+
+    /**
+     * A helper class which can be used to get the meta data out of the submitted events.
+     * This is part of the DataChangeEvent class, but needs to be integrated when you capture business events.
+     */
+    public static class MetaData {
+        private String eid;
+        private String eventType;
+        private Instant occurredAt;
+        private String flowId;
+
+        public String getEid() {
+            return eid;
+        }
+
+        public String getEventType() {
+            return eventType;
+        }
+
+        public Instant getOccurredAt() {
+            return occurredAt;
+        }
+
+        public String getFlowId() {
+            return flowId;
+        }
+
+    }
 }
