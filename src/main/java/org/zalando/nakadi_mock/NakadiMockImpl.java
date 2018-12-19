@@ -7,10 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.jayway.jsonpath.Configuration;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import com.jayway.jsonpath.TypeRef;
+import static com.google.gson.FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES;
+
+import com.google.gson.GsonBuilder;
+import com.jayway.jsonpath.*;
 import com.jayway.jsonpath.spi.json.GsonJsonProvider;
 import com.jayway.jsonpath.spi.mapper.GsonMappingProvider;
 
@@ -28,8 +28,10 @@ import io.undertow.util.PathTemplateMatch;
 class NakadiMockImpl implements NakadiMock {
     private static HttpString CONTENT_TYPE_HEADER = new HttpString("Content-Type");
 
-    Configuration jsonPathConfig = Configuration.builder().jsonProvider(new GsonJsonProvider())
-            .mappingProvider(new GsonMappingProvider()).build();
+    Configuration jsonPathConfig = Configuration.builder()
+            .jsonProvider(new GsonJsonProvider())
+            .mappingProvider(new GsonMappingProvider(new GsonBuilder().setFieldNamingPolicy(LOWER_CASE_WITH_UNDERSCORES).create()))
+            .build();
 
 
     private static class CallbackWithTypeRef<T> {
