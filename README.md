@@ -107,6 +107,30 @@ URL nakadiUrl = mock.getRootUrl();
 ```
 
 
+## Integrating with spring-boot tests of your application
+
+If you are using Spring-Boot, and your Nakadi integration needs its URL to be set up by spring properties, it becomes a bit more complicated to set up everything, because the URL is only known after NakadiMock is started, but needs to be available before setting up the spring context.
+
+A way I found is by creating an ApplicationContextInitializer implementation, which creates the NakadiMock object, starts it (potentially also registers it as a bean for use by the tests) and puts the URL into a property of the context. This is then used by `@ContextConfiguration(initializers=YourClass.class)` at the test class. Here is an example:
+
+```java
+/**
+ * An application context initializer which sets up a NakadiMock bean and registers the server URL as a property.
+ */
+class NakadiServerMockInitializer  implements ApplicationContextInitializer<ConfigurableApplicationContext>{
+
+    @Override
+    public void initialize(ConfigurableApplicationContext context) {
+        NakadiMock mock = NakadiMock.make();
+        context.getBeanFactory().registerSingleton("nakadiMock", mock);
+        mock.start();
+        URL url = mock.getRootUrl();
+
+        TestPropertyValues.of("nakadi-producer.nakadi-base-uri="+url).applyTo(context);
+    }
+}
+```
+
 ## More Planned features:
 
 ### Event consumption
