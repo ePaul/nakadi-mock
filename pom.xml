@@ -27,6 +27,7 @@
 			<groupId>org.jboss.slf4j</groupId>
 			<artifactId>slf4j-jboss-logging</artifactId>
 			<version>1.1.0.Final</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.jayway.jsonpath</groupId>
@@ -56,4 +57,44 @@
 			<version>1.3.0</version>
 		</dependency>
 	</dependencies>
+	  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.2.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+             <!--  <minimizeJar>true</minimizeJar> -->
+              <artifactSet>
+              	<includes>
+              		<include>io.undertow:undertow-core</include>
+              		<include>org.jboss.xnio:xnio-nio</include>
+              		<include>org.jboss.xnio:xnio-api</include>
+              		<include>org.jboss.logging:jboss-logging</include>
+              	</includes>
+              </artifactSet>
+              <relocations>
+              	<relocation>
+              		<pattern></pattern>
+              		<shadedPattern>org.zalando.nakadi_mock.shaded.</shadedPattern>
+              		<includes>
+              			<include>io.undertow.**</include>
+              			<include>org.jboss.logging.**</include>
+              			<include>org.xnio.**</include>
+              		</includes>
+              	</relocation>
+              </relocations>
+              <createSourcesJar>true</createSourcesJar>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
